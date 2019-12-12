@@ -297,36 +297,38 @@ File File::parse_file_binary(std::ifstream& in) {
 
 File File::parse_file_text(std::ifstream& in) {
     int line_count = 0;
-    std::string line;
+    std::string line = "";
     std::string str = "";
     std::stringstream ss;
     auto readLine = [&]() {
-        if (std::getline(in, line)) {
+        while(std::getline(in, line)) {
             ++line_count;
-        }
-        else {
-            line = "";
-            ss.str("");
-        }
-        int bg = 0;
-        int ed = line.length();
-        // remove leading whitespaces
-        for (;bg < ed; ++bg) {
-            if (!isspace((unsigned char)line[bg])) {
-                break;
+            int bg = 0;
+            int ed = line.length();
+            // remove comment
+            for (auto i = bg; i < ed; ++i) {
+                if (line[i] == '#') {
+                    ed = i;
+                    break;
+                }
+            }
+            // remove leading whitespaces
+            for (;bg < ed; ++bg) {
+                if (!isspace(static_cast<unsigned char>(line[bg]))) {
+                    break;
+                }
+            }   
+            // not a blank line     
+            if (bg != ed) {
+                line = line.substr(bg, ed-bg);
+                ss.str(line);
+                ss.clear();
+                return;
             }
         }
-        // remove comment
-        for (auto i = bg; i < ed; ++i) {
-            if (line[i] == '#') {
-                ed = i;
-                break;
-            }
-        }
-        line = line.substr(bg, ed-bg);
-        // std::cout << line_count << ":" << line << std::endl;
-        ss.str(line);
-        ss.clear();
+        // eof
+        line = "";
+        ss.str("");
     };
     auto reuseLine = [&]() {
         ss.str(line);
@@ -335,11 +337,14 @@ File File::parse_file_text(std::ifstream& in) {
     auto errorLineInfo = [&]() {
         println(std::cerr, "line", line_count, ":\n   ", line);
     };
+    auto throwInvalidFileException = [&](const char* msg) {
+        errorLineInfo();
+        throw InvalidFile(msg);
+    };
     auto ensureNoMoreInput = [&]() {
         char ch;
         if (ss >> std::skipws >> ch) {
-            errorLineInfo();
-            throw InvalidFile("invalid line");
+            throwInvalidFileException("invalid line");
         }
     };
     readLine();
@@ -355,101 +360,71 @@ File File::parse_file_text(std::ifstream& in) {
             int index = -1;
             std::string type;
             std::string value;
-            if (ss >> index >> type) {
-                if (index != constants.size()) {
-                    errorLineInfo();
-                    throw InvalidFile("unordered index");
-                }
-                if (type == "S") {
-                    constant.type = vm::Constant::Type::STRING;
-                    char ch;
-                    if (ss >> std::skipws >> ch) {
-                        if (ch != '\"') {
-                            errorLineInfo();
-                            throw InvalidFile("no qoute for string constant");
-                        }
-                        while (true) {
-                            if (!ss.get(ch)) {
-                                errorLineInfo();
-                                throw InvalidFile("endless string constant");
-                            }
-                            if (ch == '\"') {
-                                break;
-                            }
-                            value += ch;
-                        }
-                    }
-                    if (value.length() > UINT16_MAX) {
-                        errorLineInfo();
-                        throw InvalidFile("too long the string constant");
-                    }
-                    constant.value = std::move(value);
-                }
-                else if (type == "I") {
-                    constant.type = vm::Constant::Type::INT;
-                    if (!(ss >> std::skipws >> value)) {
-                        errorLineInfo();
-                        throw InvalidFile("invalid format");
-                    }
-                    try {
-                        if (value.length() > 2 && value[0] == '0' && (value[1] == 'x' || value[1] == 'X')) {
-                            if (value.length() > 10) {
-                                errorLineInfo();
-                                throw InvalidFile("out of range");
-                            }
-                            else {
-                                constant.value = static_cast<vm::int_t>(std::stoull(value, 0, 0));
-                            }
-                        }
-                        else {
-                            constant.value = static_cast<vm::int_t>(std::stoi(value));
-                        }
-                    }
-                    catch (const std::out_of_range&) {
-                        errorLineInfo();
-                        throw InvalidFile("out of range or invalid format");
-                    }
-                }
-                else if (type == "D") {
-                    constant.type = vm::Constant::Type::DOUBLE;
-                    if (!(ss >> std::skipws >> value)) {
-                        errorLineInfo();
-                        throw InvalidFile("invalid format");
-                    }
-                    try {
-                        if (value.length() > 2 && value[0] == '0' && (value[1] == 'x' || value[1] == 'X')) {
-                            union {
-                                double d;
-                                std::uint64_t ll;
-                            } v;
-                            v.ll = static_cast<std::uint64_t>(std::stoull(value, 0, 16));
-                            constant.value = v.d;
-                        }
-                        else {
-                            constant.value = static_cast<vm::double_t>(std::stod(value, 0));
-                        }
-                    }
-                    catch (std::out_of_range&) {
-                        errorLineInfo();
-                        throw InvalidFile("out of range or invalid format");
-                    }
-                }
-                else {
-                    errorLineInfo();
-                    throw InvalidFile("invalid constant type");
-                }
-                constants.push_back(std::move(constant));
-                ensureNoMoreInput();
-            }
-            else {
+            // no more constants
+            if (!(ss >> index >> type)) {
                 reuseLine();
                 break;
             }
+            if (index != constants.size()) {
+                throwInvalidFileException("unordered index");
+            }
+            if (type == "S") {
+                constant.type = vm::Constant::Type::STRING;
+                char ch;
+                if (!(ss >> std::skipws >> ch)) {
+                    throwInvalidFileException("string constant expected");
+                }
+                if (ch != '\"') {
+                    throwInvalidFileException("no qoute for string constant");
+                }
+                while (true) {
+                    if (!ss.get(ch)) {
+                        throwInvalidFileException("endless string constant");
+                    }
+                    if (ch == '\"') {
+                        break;
+                    }
+                    value += ch;
+                }
+            
+                if (value.length() > UINT16_MAX) {
+                    throwInvalidFileException("too long the string constant");
+                }
+                constant.value = std::move(value);
+            }
+            else if (type == "I") {
+                constant.type = vm::Constant::Type::INT;
+                if (!(ss >> std::skipws >> value)) {
+                    throwInvalidFileException("invalid format");
+                }
+                try {
+                    constant.value = try_to_int(value);
+                }
+                catch (const std::exception&) {
+                    throwInvalidFileException("out of range or invalid format");
+                }
+            }
+            else if (type == "D") {
+                constant.type = vm::Constant::Type::DOUBLE;
+                if (!(ss >> std::skipws >> value)) {
+                    throwInvalidFileException("invalid format");
+                }
+                try {
+                    constant.value = try_to_double(value);
+                }
+                catch (const std::exception&) {
+                    throwInvalidFileException("out of range or invalid format");
+                }
+            }
+            else {
+                throwInvalidFileException("invalid constant type");
+            }
+            constants.push_back(std::move(constant));
+            ensureNoMoreInput();
         }
     }
     else {
-        errorLineInfo();
-        throw InvalidFile(".constants expected");
+        throwInvalidFileException(".constants expected");
     }
     if (constants.size() > UINT16_MAX) {
         throw InvalidFile("too many constants");
@@ -462,48 +437,44 @@ File File::parse_file_text(std::ifstream& in) {
             readLine();
             int index;
             std::string opName;
-            if (ss >> index >> opName) {
-                if (index != rtv.size()) {
-                    errorLineInfo();
-                    throw InvalidFile("unordered index");
-                }
-                for (auto& ch : opName) {
-                    ch |= 0x20; // tolower
-                }
-                vm::Instruction ins;
-                if (auto it = vm::opCodeOfName.find(opName); it != vm::opCodeOfName.end()) {
-                    ins.op = it->second;
-                }
-                else {
-                    errorLineInfo();
-                    throw InvalidFile("no such opcode");
-                }
-
-                int paramCount;
-                if (auto it = vm::paramSizeOfOpCode.find(ins.op); it != vm::paramSizeOfOpCode.end()) {
-                    paramCount = it->second.size();
-                    if (!(ss >> ins.x)) {
-                        errorLineInfo();
-                        throw InvalidFile("parameter expected");
-                    }
-                    if(paramCount == 2) {
-                        char ch;
-                        if (!(ss >> std::skipws >> ch >> ins.y)) {
-                            errorLineInfo();
-                            throw InvalidFile("another parameter expected");
-                        }
-                        if (ch != ',') {
-                            throw InvalidFile("parameters should be seperated by \",\"");
-                        }
-                    }
-                }
-                rtv.push_back(ins);
-                ensureNoMoreInput();
-            }
-            else {
+            // no more instructions
+            if (!(ss >> index >> opName)) {
                 reuseLine();
                 break;
             }
+            if (index != rtv.size()) {
+                throwInvalidFileException("unordered index");
+            }
+            for (auto& ch : opName) {
+                ch = tolower(static_cast<unsigned char>(ch));
+            }
+            vm::Instruction ins;
+            if (auto it = vm::opCodeOfName.find(opName); it != vm::opCodeOfName.end()) {
+                ins.op = it->second;
+            }
+            else {
+                throwInvalidFileException("no such opcode");
+            }
+            if (auto it = vm::paramSizeOfOpCode.find(ins.op); it != vm::paramSizeOfOpCode.end()) {
+                int paramCount = it->second.size();
+                if (!(ss >> ins.x)) {
+                    throwInvalidFileException("parameter expected");
+                }
+                if(paramCount == 2) {
+                    char ch;
+                    if (!(ss >> std::skipws >> ch)) {
+                        throwInvalidFileException("another parameter expected");
+                    }
+                    if (ch != ',') {
+                        throwInvalidFileException("parameters should be seperated by \",\"");
+                    }
+                    if (!(ss >> ins.y)) {
+                        throwInvalidFileException("another parameter expected");
+                    }
+                }
+            }
+            rtv.push_back(ins);
+            ensureNoMoreInput();
         }
         if (rtv.size() > U2_MAX) {
             throw InvalidFile("too many instructions");
@@ -519,8 +490,7 @@ File File::parse_file_text(std::ifstream& in) {
         start = std::move(parseInstructions());
     }
     else {
-        errorLineInfo();
-        throw InvalidFile(".start expected");
+        throwInvalidFileException(".start expected");
     }
 
     // parse functions
@@ -536,61 +506,53 @@ File File::parse_file_text(std::ifstream& in) {
             unsigned int nameIndex;
             unsigned int paramSize;
             unsigned int level;
-            if (ss >> std::skipws >> index >> nameIndex >> paramSize >> level) {
-                if (index != functions.size()) {
-                    errorLineInfo();
-                    throw InvalidFile("unordered index");
-                }
-                if (nameIndex >= constants.size() || nameIndex < 0) {
-                    errorLineInfo();
-                    throw InvalidFile("name not found");
-                }
-                if (constants[nameIndex].type != vm::Constant::Type::STRING) {
-                    errorLineInfo();
-                    throw InvalidFile("name not found");
-                }
-                if (std::get<vm::str_t>(constants[nameIndex].value) == "main") {
-                    mainFound = true;
-                }
-                if (paramSize > UINT16_MAX || paramSize < 0) {
-                    errorLineInfo();
-                    throw InvalidFile("too many parameters");
-                }
-                if (level > UINT16_MAX || level <= 0) {
-                    errorLineInfo();
-                    throw InvalidFile("too high the level");
-                }
-                function.nameIndex = nameIndex;
-                function.paramSize = paramSize;
-                function.level = level;
-                functions.push_back(std::move(function));
-                ensureNoMoreInput();
-            }
-            else {
+            // no more function
+            if (!(ss >> std::skipws >> index >> nameIndex >> paramSize >> level)) {
                 reuseLine();
                 break;
             }
+            if (index != functions.size()) {
+                throwInvalidFileException("unordered index");
+            }
+            if (nameIndex >= constants.size() || nameIndex < 0) {
+                throwInvalidFileException("name not found");
+            }
+            if (constants[nameIndex].type != vm::Constant::Type::STRING) {
+                throwInvalidFileException("name not found");
+            }
+            if (std::get<vm::str_t>(constants[nameIndex].value) == "main") {
+                mainFound = true;
+            }
+            if (paramSize > UINT16_MAX || paramSize < 0) {
+                throwInvalidFileException("too many parameters");
+            }
+            if (level > UINT16_MAX || level <= 0) {
+                throwInvalidFileException("too high the level");
+            }
+            function.nameIndex = nameIndex;
+            function.paramSize = paramSize;
+            function.level = level;
+            functions.push_back(std::move(function));
+            ensureNoMoreInput();
         }
     }
     else {
-        errorLineInfo();
-        throw InvalidFile(".functions expected");
+        throwInvalidFileException(".functions expected");
     }
     if (!mainFound) {
-        errorLineInfo();
         throw InvalidFile("main() not found");
     }
 
     int functions_count = functions.size();
     if (functions_count > UINT16_MAX) {
-        errorLineInfo();
         throw InvalidFile("too many functions");
     }
     for (int i = 0; i < functions_count; ++i) {
-        ss >> str;
+        if (!(ss >> str)) {
+            throwInvalidFileException("\".F{index}:\" expected");
+        }
         if (str.length() < 2 || str.back() != ':') {
-            errorLineInfo();
-            throw InvalidFile(".F{index}: expected");
+            throwInvalidFileException("\".F{index}:\" expected");
         }
         str.pop_back();
 
@@ -604,8 +566,7 @@ File File::parse_file_text(std::ifstream& in) {
             if ((ch == 'F' || ch == 'f') && ss >> index) {
                 // .Fx
                 if (index < 0 || index >= functions_count) {
-                    errorLineInfo();
-                    throw InvalidFile("index out of range");
+                    throwInvalidFileException("index out of range");
                 }
             }
         }
@@ -621,15 +582,13 @@ File File::parse_file_text(std::ifstream& in) {
         }
         ensureNoMoreInput();
         if (index < 0) {
-            errorLineInfo();
-            throw InvalidFile("no such function");
+            throwInvalidFileException("no such function");
         }
         functions.at(index).instructions = std::move(parseInstructions());
     }
 
     if (in >> str) {
-        errorLineInfo();
-        throw InvalidFile("unused content");
+        throwInvalidFileException("unused content");
     }
 
     return File{0x00000001, std::move(constants), std::move(start), std::move(functions)};

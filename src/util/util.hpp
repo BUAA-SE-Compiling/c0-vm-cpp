@@ -26,4 +26,27 @@ inline std::string to_hex_string(double d) {
     return ss.str();
 }
 
+inline std::int32_t try_to_int(std::string s) {
+    if (s.length() > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+        return static_cast<std::int32_t>(std::stoull(s, 0, 0));
+    }
+    else {
+        return std::stoi(s);
+    }
+}
+
+inline double try_to_double(std::string s) {
+    if (s.length() > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+        union {
+            double d;
+            std::uint64_t ll;
+        } v;
+        v.ll = static_cast<std::uint64_t>(std::stoull(s, 0, 16));
+        return v.d;
+    }
+    else {
+        return std::stod(s, 0);
+    }
+}
+
 #endif

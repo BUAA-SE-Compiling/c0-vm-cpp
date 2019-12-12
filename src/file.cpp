@@ -357,7 +357,7 @@ File File::parse_file_text(std::ifstream& in) {
         while (true) {
             readLine();
             vm::Constant constant;
-            int index = -1;
+            unsigned int index;
             std::string type;
             std::string value;
             // no more constants
@@ -426,7 +426,7 @@ File File::parse_file_text(std::ifstream& in) {
     else {
         throwInvalidFileException(".constants expected");
     }
-    if (constants.size() > UINT16_MAX) {
+    if (constants.size() > U2_MAX) {
         throw InvalidFile("too many constants");
     }
 
@@ -435,7 +435,7 @@ File File::parse_file_text(std::ifstream& in) {
         std::vector<vm::Instruction> rtv;
         while(true) {
             readLine();
-            int index;
+            unsigned int index;
             std::string opName;
             // no more instructions
             if (!(ss >> index >> opName)) {
@@ -514,7 +514,7 @@ File File::parse_file_text(std::ifstream& in) {
             if (index != functions.size()) {
                 throwInvalidFileException("unordered index");
             }
-            if (nameIndex >= constants.size() || nameIndex < 0) {
+            if (nameIndex >= constants.size()) {
                 throwInvalidFileException("name not found");
             }
             if (constants[nameIndex].type != vm::Constant::Type::STRING) {
@@ -523,10 +523,10 @@ File File::parse_file_text(std::ifstream& in) {
             if (std::get<vm::str_t>(constants[nameIndex].value) == "main") {
                 mainFound = true;
             }
-            if (paramSize > UINT16_MAX || paramSize < 0) {
+            if (paramSize > U2_MAX) {
                 throwInvalidFileException("too many parameters");
             }
-            if (level > UINT16_MAX || level <= 0) {
+            if (level > U2_MAX) {
                 throwInvalidFileException("too high the level");
             }
             function.nameIndex = nameIndex;
@@ -544,7 +544,7 @@ File File::parse_file_text(std::ifstream& in) {
     }
 
     int functions_count = functions.size();
-    if (functions_count > UINT16_MAX) {
+    if (functions_count > U2_MAX) {
         throw InvalidFile("too many functions");
     }
     for (int i = 0; i < functions_count; ++i) {

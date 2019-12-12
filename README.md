@@ -3,21 +3,19 @@ a messy cpp implementation of c0 VM
 
 
 
-本项目包括 c0 的汇编器、反汇编器、虚拟机。
+本项目包括 c0 的汇编器、反汇编器、虚拟机
 
 在 Windows 10 家庭版 64bit 、 CentOS 7.3 64 bit 以及 dokcer 镜像 中经过简单的测试通过，测试样例见 `sample/` 目录（该目录下的文件在最终评测时也会使用）。
 
 **~~大概率有bug~~**。如果发现问题，请附上对应的文件，以便尽快修复。
 
-在项目根目录执行 `build.sh` 的指令，可以在根目录的 `bin/` 目录下找到 名为 `c0-vm-cpp` 的编译产物。
-
-或执行如下操作，可在`build/src/`目录下找到编译产物：
+在根目录执行如下操作，可在`build/src/`目录下找到名为 `c0-vm-cpp` 的编译产物（使用C++17编写，请确保你的编译器支持）：
 
 ```
 mkdir build
 cd build
 cmake ..
-make
+make # mingw32-make
 ```
 
 使用方式

@@ -122,12 +122,21 @@ void VM::printStackTrace(std::ostream& out) {
         return;
     }
     auto pc = this->_ip;
-    println(out, "          function", rit->functionName, "at instruction", pc, ":", _currentInstructions.at(pc));
+    if (pc >= _currentInstructions.size()) {
+        println(out, "          function", rit->functionName, "at instruction", pc, ":", _currentInstructions.at(pc));
+    }
+    else {
+        println(out, "          control reaches the end of function", rit->functionName, "without return");
+    }
     while (true) {
         pc = rit->prevPC;
         ++rit;
         if (rit == red) {
-            break;
+            return;
+        }
+        if (rit->functionIndex == -1) {
+            println(out, "called by .start at instruction", pc, ":", _file.start.at(pc));
+            return;
         }
         println(out, "called by function", rit->functionName, "at instruction", pc, ":", _file.functions.at(rit->functionIndex).instructions.at(pc));
     }

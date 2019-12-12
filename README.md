@@ -39,8 +39,8 @@ Optional arguments:
 每次使用只能带有一种选项参数，且必须有`input`参数：
 
 - `-h`，显示帮助
-- `-a input output`，输入文本汇编文件`input`，将其汇编为二进制的文件`output`；必须指定`output`
-- `-d input output`，输入二进制文件`input`，输出为文本汇编文件`output`；不提供`output`则默认是标准输出流
+- `-a input output`，输入文本汇编文件`input`，将其汇编为二进制的文件`output`；不指定`output`则会默认输出到`input.out`
+- `-d input output`，输入二进制文件`input`，输出为文本汇编文件`output`；不指定`output`则默认是标准输出流
 - `-r input`，输入二进制文件`input`并使用虚拟机运行，虚拟机使用标准输入流和标准输出流，与参数无关
 
 

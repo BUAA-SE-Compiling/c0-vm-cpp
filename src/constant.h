@@ -26,9 +26,22 @@ template <>
 inline void print(std::ostream& out, const vm::Constant& t) {
     switch (t.type)
     {
-    case vm::Constant::Type::STRING: 
-        printfmt(out, "S \"{}\"", std::get<vm::str_t>(t.value));
-        break;
+    case vm::Constant::Type::STRING: {
+        std::string s;
+        for (auto ch : std::get<vm::str_t>(t.value)) {
+            switch (ch)
+            {
+            case '\\': s += "\\x5C"; break;
+            case '\'': s += "\\x27"; break;
+            case '\"': s += "\\x22"; break;
+            case '\n': s += "\\x0A"; break;
+            case '\r': s += "\\x0D"; break;
+            case '\t': s += "\\x09"; break;
+            default:   s += ch;   break;
+            }
+        }
+        printfmt(out, "S \"{}\"", s);
+    } break;
     case vm::Constant::Type::INT: {
         auto v = std::get<vm::int_t>(t.value);
         // printidx(out, "I 0x{0}{1}{2} # {2}", std::hex, std::uppercase, v, v);

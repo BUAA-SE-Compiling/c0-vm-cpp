@@ -77,7 +77,7 @@ int main (int argc, char** argv) {
 		program.parse_args(argc, argv);
 	}
 	catch (const std::runtime_error& err) {
-		program.print_help();
+		std::cout << program;
 		exit(2);
 	}
 

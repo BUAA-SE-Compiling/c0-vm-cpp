@@ -348,7 +348,7 @@ File File::parse_file_text(std::ifstream& in) {
     };
     #define errorIf(cond, msg)    do { if ((cond)) { errorInvalidFile((msg)); } } while(false)
     #define errorIfNot(cond, msg) errorIf(!(cond), (msg))
-    #define errorIfAssignFailed(lhs, rhs, msg) do { try{ lhs = (rhs); } catch (const std::exception&) { errorIf(true, (msg)); } } while(false)
+    #define errorIfAssignFailed(lhs, rhs, msg) do { try { lhs = (rhs); } catch (const std::exception&) { errorIf(true, (msg)); } } while(false)
     auto ensureNoMoreInput = [&]() {
         if (char ch; ss >> std::skipws >> ch) {
             errorIf(true, "invalid line");
@@ -389,10 +389,34 @@ File File::parse_file_text(std::ifstream& in) {
                 errorIfNot(ss >> std::skipws >> ch, "string constant expected");
                 errorIf(ch != '\"', "no leading qoute for string constant");
                 // parse the content of string
-                for (; true; value += ch) {
+                while (true) {
                     errorIfNot(ss.get(ch), "no trailing quote for string constant");
                     if (ch == '\"') { 
                         break; 
+                    }
+                    if (ch == '\\') {
+                        errorIfNot(ss.get(ch), "incomplete escape seq");
+                        switch (ch) {
+                        case '\\': value += '\\'; break;
+                        case '\'': value += '\''; break;
+                        case '\"': value += '\"'; break;
+                        case 'n':  value += '\n'; break;
+                        case 'r':  value += '\r'; break;
+                        case 't':  value += '\t'; break;
+                        case 'x': {
+                            errorIfNot(ss.get(ch), "incomplete hex escape seq");
+                            errorIfNot(is_hex_digit(ch), "invalid hex escape seq");
+                            char v = (0xff & hex_digit_to_int(ch)) << 4;
+                            errorIfNot(ss.get(ch), "incomplete hex escape seq");
+                            errorIfNot(is_hex_digit(ch), "invalid hex escape seq");
+                            v |= (0xff & hex_digit_to_int(ch));
+                            value += v;
+                        }; break;
+                        default: errorIf(true, strfmt("unknown escape seq \"\\{}\"", ch));
+                        }
+                    }
+                    else {
+                        value += ch;
                     }
                 }
                 errorIf(value.length() > UINT16_MAX, "too long the string constant");

@@ -8,6 +8,27 @@
 #include <string>
 #include <sstream>
 
+inline bool is_hex_digit(unsigned char ch) {
+    return '0' <= ch && ch <= '9'
+        || 'a' <= ch && ch <= 'f'
+        || 'A' <= ch && ch <= 'F'
+    ;
+}
+
+inline int hex_digit_to_int(unsigned char ch) {
+    if ('0' <= ch && ch <= '9') {
+        return ch - '0';
+    }
+    if ('a' <= ch && ch <= 'f') {
+        return ch - 'a' + 10;
+    }
+    if ('A' <= ch && ch <= 'F') {
+        return ch - 'A' + 10;
+    }
+    assert(("unknown error", false));
+    return -1;
+}
+
 inline std::string to_hex_string(double d) {
     std::stringstream ss;
     ss << "0x";

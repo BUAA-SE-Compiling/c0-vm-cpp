@@ -49,4 +49,30 @@ inline double try_to_double(std::string s) {
     }
 }
 
+inline std::vector<std::string> split(std::string s, char delimiter) {
+    std::vector<std::string> rtv;
+    std::string temp = "";
+    for (auto it = s.begin(); true; ++it) {
+        if (it == s.end()) {
+            rtv.push_back(std::move(temp));
+            return rtv;
+        }
+        char ch = *it;
+        if (ch == delimiter) {
+            rtv.push_back(std::move(temp));
+            temp = "";
+        }
+        else {
+            temp += ch;
+        }
+    }
+}
+
+inline std::string to_lower(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+        [](unsigned char ch){ return std::tolower(ch); }
+    );
+    return s;
+}
+
 #endif

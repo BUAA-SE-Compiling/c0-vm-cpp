@@ -61,8 +61,8 @@ void File::output_text(std::ostream& out) {
 void File::output_binary(std::ofstream& out) {
 
     char bytes[8];
-    auto writeNBytes = [&](void* addr, int count) {
-        assert(0 <= count && count <= 8);
+    const auto writeNBytes = [&](void* addr, int count) {
+        assert(0 < count && count <= 8);
         char* p = reinterpret_cast<char*>(addr) + (count-1);
         for (int i = 0; i < count; ++i) {
             bytes[i] = *p--;
@@ -76,7 +76,7 @@ void File::output_binary(std::ofstream& out) {
     out.write("\x00\x00\x00\x01", 4);
     // constants_count
     vm::u2 constants_count = constants.size();
-    writeNBytes(&constants_count, 2);
+    writeNBytes(&constants_count, sizeof constants_count);
     // constants
     for (auto& constant : constants) {
         switch (constant.type)
@@ -85,18 +85,18 @@ void File::output_binary(std::ofstream& out) {
             out.write("\x00", 1);
             std::string v = std::get<vm::str_t>(constant.value);
             vm::u2 len = v.length();
-            writeNBytes(&len, 2);
+            writeNBytes(&len, sizeof len);
             out.write(v.c_str(), len);
         } break;
         case vm::Constant::Type::INT: {
             out.write("\x01", 1);
-            int v = std::get<vm::int_t>(constant.value);
-            writeNBytes(&v, 4);
+            vm::int_t v = std::get<vm::int_t>(constant.value);
+            writeNBytes(&v, sizeof v);
         } break;
         case vm::Constant::Type::DOUBLE: {
             out.write("\x02", 1);
-            double v = std::get<vm::double_t>(constant.value);
-            writeNBytes(&v, 8);
+            vm::double_t v = std::get<vm::double_t>(constant.value);
+            writeNBytes(&v, sizeof v);
         } break;
         default: assert(("unexpected error", false)); break;
         }
@@ -104,13 +104,12 @@ void File::output_binary(std::ofstream& out) {
 
     auto to_binary = [&](const std::vector<vm::Instruction>& v) {
         vm::u2 instructions_count = v.size();
-        writeNBytes(&instructions_count, 2);
+        writeNBytes(&instructions_count, sizeof instructions_count);
         for (auto& ins : v) {
             vm::u1 op = static_cast<vm::u1>(ins.op); 
-            writeNBytes(&op, 1);
+            writeNBytes(&op, sizeof op);
             if (auto it = vm::paramSizeOfOpCode.find(ins.op); it != vm::paramSizeOfOpCode.end()) {
                 auto paramSizes = it->second;
-                vm::u4 x = ins.x; 
                 switch (paramSizes[0]) {
                 #define CASE(n) case n: { vm::u##n x = ins.x; writeNBytes(&x, n); }
                 CASE(1); break; 
@@ -120,8 +119,14 @@ void File::output_binary(std::ofstream& out) {
                 default: assert(("unexpected error", false));
                 }
                 if (paramSizes.size() == 2) {
-                    vm::u4 y = ins.y; 
-                    writeNBytes(&y, 4);
+                    switch (paramSizes[1]) {
+                    #define CASE(n) case n: { vm::u##n y = ins.y; writeNBytes(&y, n); }
+                    CASE(1); break; 
+                    CASE(2); break;
+                    CASE(4); break;
+                    #undef CASE
+                    default: assert(("unexpected error", false));
+                    }
                 }
             }
         }
@@ -131,13 +136,13 @@ void File::output_binary(std::ofstream& out) {
     to_binary(start);
     // functions_count
     vm::u2 functions_count = functions.size();
-    writeNBytes(&functions_count, 2);
+    writeNBytes(&functions_count, sizeof functions_count);
     // functions
     for (auto& fun : functions) {
         vm::u2 v;
-        v = fun.nameIndex; writeNBytes(&v, 2);
-        v = fun.paramSize; writeNBytes(&v, 2);
-        v = fun.level;     writeNBytes(&v, 2);
+        v = fun.nameIndex; writeNBytes(&v, sizeof v);
+        v = fun.paramSize; writeNBytes(&v, sizeof v);
+        v = fun.level;     writeNBytes(&v, sizeof v);
         to_binary(fun.instructions);
     }
 }
@@ -147,7 +152,7 @@ File File::parse_file_binary(std::ifstream& in) {
     const std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(in), {});
     size_t pos = 0;
     const auto bufferSize = buffer.size();
-    auto readByte = [&]() {
+    const auto readByte = [&]() {
         if (pos + 1 > bufferSize) {
             throw InvalidFile("incomplete binary file");
         }
@@ -155,7 +160,7 @@ File File::parse_file_binary(std::ifstream& in) {
         pos += 1;
         return rtv;
     };
-    auto read2bytes = [&] {
+    const auto read2bytes = [&] {
         if (pos + 2 > bufferSize) {
             throw InvalidFile("incomplete binary file");
         }
@@ -165,7 +170,7 @@ File File::parse_file_binary(std::ifstream& in) {
         pos += 2;
         return rtv;
     };
-    auto read4bytes = [&]() {
+    const auto read4bytes = [&]() {
         if (pos + 4 > bufferSize) {
             throw InvalidFile("incomplete binary file");
         }
@@ -175,7 +180,7 @@ File File::parse_file_binary(std::ifstream& in) {
         pos += 4;
         return rtv;
     };
-    auto readDouble = [&]() {
+    const auto readDouble = [&]() {
         if (pos + 8 > bufferSize) {
             throw InvalidFile("invalid binary file: incomplete double constant");
         }
@@ -188,7 +193,7 @@ File File::parse_file_binary(std::ifstream& in) {
         }
         return rtv.d;
     };
-    auto readString = [&](vm::u2 length) {
+    const auto readString = [&](vm::u2 length) {
         if (pos + length > bufferSize) {
             throw InvalidFile("invalid binary file: incomplete string constant");
         }
@@ -198,7 +203,7 @@ File File::parse_file_binary(std::ifstream& in) {
         }
         return rtv;
     };
-    auto parseInstruction = [&]() {
+    const auto readInstruction = [&]() {
         vm::Instruction ins;
         ins.op = static_cast<vm::OpCode>(readByte());
         if (vm::nameOfOpCode.count(ins.op) == 0) {
@@ -256,7 +261,7 @@ File File::parse_file_binary(std::ifstream& in) {
     auto instructionsCount = read2bytes();
     std::vector<vm::Instruction> start;
     for (int j = 0; j < instructionsCount; ++j) {
-        start.push_back(std::move(parseInstruction()));
+        start.push_back(std::move(readInstruction()));
     }
 
     // parse functions
@@ -279,7 +284,7 @@ File File::parse_file_binary(std::ifstream& in) {
         fun.level = read2bytes();
         auto instructionsCount = read2bytes();
         for (int k = 0; k < instructionsCount; ++k) {
-            fun.instructions.push_back(std::move(parseInstruction()));
+            fun.instructions.push_back(std::move(readInstruction()));
         }
         functions.push_back(std::move(fun));
     }
@@ -300,7 +305,7 @@ File File::parse_file_text(std::ifstream& in) {
     std::string line = "";
     std::string str = "";
     std::stringstream ss;
-    auto readLine = [&]() {
+    const auto readLine = [&]() {
         while(std::getline(in, line)) {
             ++line_count;
             int bg = 0;
@@ -330,23 +335,26 @@ File File::parse_file_text(std::ifstream& in) {
         line = "";
         ss.str("");
     };
-    auto reuseLine = [&]() {
+    const auto reuseLine = [&]() {
         ss.str(line);
         ss.clear();
     };
-    auto errorLineInfo = [&]() {
+    const auto errorLineInfo = [&]() {
         println(std::cerr, "line", line_count, ":\n   ", line);
     };
-    auto throwInvalidFileException = [&](const char* msg) {
+    const auto errorInvalidFile = [&](std::string msg) {
         errorLineInfo();
         throw InvalidFile(msg);
     };
+    #define errorIf(cond, msg)    do { if ((cond)) { errorInvalidFile((msg)); } } while(false)
+    #define errorIfNot(cond, msg) errorIf(!(cond), (msg))
+    #define errorIfAssignFailed(lhs, rhs, msg) do { try{ lhs = (rhs); } catch (const std::exception&) { errorIf(true, (msg)); } } while(false)
     auto ensureNoMoreInput = [&]() {
-        char ch;
-        if (ss >> std::skipws >> ch) {
-            throwInvalidFileException("invalid line");
+        if (char ch; ss >> std::skipws >> ch) {
+            errorIf(true, "invalid line");
         }
     };
+
     readLine();
 
     // parse constants
@@ -355,130 +363,112 @@ File File::parse_file_text(std::ifstream& in) {
     if (str == ".constants:") {
         ensureNoMoreInput();
         while (true) {
+            // {index} {type} {value}
             readLine();
             vm::Constant constant;
-            unsigned int index;
+            std::string temp;
+            int index;
             std::string type;
             std::string value;
-            // no more constants
-            if (!(ss >> index >> type)) {
-                reuseLine();
-                break;
+            // eof
+            if (!(ss >> temp)) { 
+                reuseLine(); break; 
             }
-            if (index != constants.size()) {
-                throwInvalidFileException("unordered index");
+            // parse index
+            try {
+                index = try_to_int(temp);
             }
+            catch (const std::exception&) {
+                reuseLine(); break;
+            }
+            errorIf(index != constants.size(), "unordered index");
+            errorIfNot(ss >> type, "constant type expected");
             if (type == "S") {
                 constant.type = vm::Constant::Type::STRING;
                 char ch;
-                if (!(ss >> std::skipws >> ch)) {
-                    throwInvalidFileException("string constant expected");
-                }
-                if (ch != '\"') {
-                    throwInvalidFileException("no qoute for string constant");
-                }
-                while (true) {
-                    if (!ss.get(ch)) {
-                        throwInvalidFileException("endless string constant");
+                errorIfNot(ss >> std::skipws >> ch, "string constant expected");
+                errorIf(ch != '\"', "no leading qoute for string constant");
+                // parse the content of string
+                for (; true; value += ch) {
+                    errorIfNot(ss.get(ch), "no trailing quote for string constant");
+                    if (ch == '\"') { 
+                        break; 
                     }
-                    if (ch == '\"') {
-                        break;
-                    }
-                    value += ch;
                 }
-            
-                if (value.length() > UINT16_MAX) {
-                    throwInvalidFileException("too long the string constant");
-                }
+                errorIf(value.length() > UINT16_MAX, "too long the string constant");
                 constant.value = std::move(value);
             }
             else if (type == "I") {
                 constant.type = vm::Constant::Type::INT;
-                if (!(ss >> std::skipws >> value)) {
-                    throwInvalidFileException("invalid format");
-                }
-                try {
-                    constant.value = try_to_int(value);
-                }
-                catch (const std::exception&) {
-                    throwInvalidFileException("out of range or invalid format");
-                }
+                errorIfNot(ss >> std::skipws >> value, "invalid format");
+                errorIfAssignFailed(constant.value, try_to_int(temp), "out of range or invalid format");
             }
             else if (type == "D") {
                 constant.type = vm::Constant::Type::DOUBLE;
-                if (!(ss >> std::skipws >> value)) {
-                    throwInvalidFileException("invalid format");
-                }
-                try {
-                    constant.value = try_to_double(value);
-                }
-                catch (const std::exception&) {
-                    throwInvalidFileException("out of range or invalid format");
-                }
+                errorIfNot(ss >> std::skipws >> value, "invalid format");
+                errorIfAssignFailed(constant.value, try_to_double(value), "out of range or invalid format");
             }
             else {
-                throwInvalidFileException("invalid constant type");
+                errorIf(true, "invalid constant type");
             }
             constants.push_back(std::move(constant));
             ensureNoMoreInput();
         }
     }
     else {
-        throwInvalidFileException(".constants expected");
+        errorIf(true, ".constants expected");
     }
-    if (constants.size() > U2_MAX) {
-        throw InvalidFile("too many constants");
-    }
+    errorIf(constants.size() > U2_MAX, "too many constants");
 
     // parse instructions
     auto parseInstructions = [&]() {
         std::vector<vm::Instruction> rtv;
         while(true) {
+            // {index} {opcode} {param1} {param2}
             readLine();
-            unsigned int index;
+            std::string temp;
+            int index;
             std::string opName;
-            // no more instructions
-            if (!(ss >> index >> opName)) {
-                reuseLine();
-                break;
+            // eof
+            if (!(ss >> temp)) { 
+                reuseLine(); break; 
             }
-            if (index != rtv.size()) {
-                throwInvalidFileException("unordered index");
+            // parse index
+            try {
+                index = try_to_int(temp);
             }
-            for (auto& ch : opName) {
-                ch = tolower(static_cast<unsigned char>(ch));
+            catch (const std::exception&) {
+                reuseLine(); break;
             }
+            errorIf(index != rtv.size(), "unordered index");
+            errorIfNot(ss >> opName, "opcode expected");
+            opName = to_lower(opName);
             vm::Instruction ins;
-            if (auto it = vm::opCodeOfName.find(opName); it != vm::opCodeOfName.end()) {
+            if (auto it = vm::opCodeOfName.find(opName); true) {
+                errorIf(it == vm::opCodeOfName.end(), "no such opcode");
                 ins.op = it->second;
-            }
-            else {
-                throwInvalidFileException("no such opcode");
             }
             if (auto it = vm::paramSizeOfOpCode.find(ins.op); it != vm::paramSizeOfOpCode.end()) {
                 int paramCount = it->second.size();
-                if (!(ss >> ins.x)) {
-                    throwInvalidFileException("parameter expected");
-                }
-                if(paramCount == 2) {
-                    char ch;
-                    if (!(ss >> std::skipws >> ch)) {
-                        throwInvalidFileException("another parameter expected");
-                    }
-                    if (ch != ',') {
-                        throwInvalidFileException("parameters should be seperated by \",\"");
-                    }
-                    if (!(ss >> ins.y)) {
-                        throwInvalidFileException("another parameter expected");
-                    }
+                std::string restLine;
+                errorIfNot(std::getline(ss, restLine), "parameters expected");
+                auto params = split(restLine, ',');
+                errorIf(params.size() != paramCount, 
+                    strfmt("{} parameters expected, {} got", paramCount, params.size())
+                );
+                errorIfAssignFailed(ins.x, try_to_int(params[0]), 
+                    strfmt("invalid first parameter: {}", params[0])
+                );
+                if (paramCount == 2) {
+                    errorIfAssignFailed(ins.y, try_to_int(params[1]), 
+                        strfmt("invalid second parameter: {}", params[1])
+                    );
                 }
             }
-            rtv.push_back(ins);
             ensureNoMoreInput();
+            rtv.push_back(ins);
         }
-        if (rtv.size() > U2_MAX) {
-            throw InvalidFile("too many instructions");
-        }
+        errorIf(rtv.size() > U2_MAX, "too many instructions");
         return rtv;
     };
 
@@ -490,7 +480,7 @@ File File::parse_file_text(std::ifstream& in) {
         start = std::move(parseInstructions());
     }
     else {
-        throwInvalidFileException(".start expected");
+        errorIf(true, ".start expected");
     }
 
     // parse functions
@@ -500,60 +490,50 @@ File File::parse_file_text(std::ifstream& in) {
     if (str == ".functions:") {
         ensureNoMoreInput();
         while (true) {
+            // {index} {nameIndex} {paramSize} {level}
             readLine();
             vm::Function function;
-            unsigned int index;
-            unsigned int nameIndex;
-            unsigned int paramSize;
-            unsigned int level;
+            std::string temp;
+            int index;
             // no more function
-            if (!(ss >> std::skipws >> index >> nameIndex >> paramSize >> level)) {
-                reuseLine();
-                break;
+            if (!(ss >> temp)) { 
+                reuseLine(); break; 
             }
-            if (index != functions.size()) {
-                throwInvalidFileException("unordered index");
+            // parse index
+            try {
+                index = try_to_int(temp);
             }
-            if (nameIndex >= constants.size()) {
-                throwInvalidFileException("name not found");
+            catch (const std::exception&) {
+                reuseLine(); break;
             }
-            if (constants[nameIndex].type != vm::Constant::Type::STRING) {
-                throwInvalidFileException("name not found");
-            }
-            if (std::get<vm::str_t>(constants[nameIndex].value) == "main") {
+            errorIf(index != functions.size(), "unordered index");
+            errorIfNot(ss >> temp, "name_index expected");
+            errorIfAssignFailed(function.nameIndex, try_to_int(temp), "invalid name_index");
+            errorIf(function.nameIndex >= constants.size(), "name not found");
+            errorIf(constants[function.nameIndex].type != vm::Constant::Type::STRING, "name not found");
+            if (std::get<vm::str_t>(constants[function.nameIndex].value) == "main") {
                 mainFound = true;
             }
-            if (paramSize > U2_MAX) {
-                throwInvalidFileException("too many parameters");
-            }
-            if (level > U2_MAX) {
-                throwInvalidFileException("too high the level");
-            }
-            function.nameIndex = nameIndex;
-            function.paramSize = paramSize;
-            function.level = level;
+            errorIfNot(ss >> temp, "param_size expected");
+            errorIfAssignFailed(function.paramSize, try_to_int(temp), "invalid param_size");
+            errorIf(function.paramSize > U2_MAX, "too many parameters");
+            errorIfNot(ss >> temp, "level expected");
+            errorIfAssignFailed(function.level, try_to_int(temp), "invalid level");
+            errorIf(function.level > U2_MAX, "too high the level");
             functions.push_back(std::move(function));
             ensureNoMoreInput();
         }
     }
     else {
-        throwInvalidFileException(".functions expected");
+        errorIf(true, ".functions expected");
     }
-    if (!mainFound) {
-        throw InvalidFile("main() not found");
-    }
+    errorIfNot(mainFound, "main() not found");
 
     int functions_count = functions.size();
-    if (functions_count > U2_MAX) {
-        throw InvalidFile("too many functions");
-    }
+    errorIf(functions_count > U2_MAX, "too many functions");
     for (int i = 0; i < functions_count; ++i) {
-        if (!(ss >> str)) {
-            throwInvalidFileException("\".F{index}:\" expected");
-        }
-        if (str.length() < 2 || str.back() != ':') {
-            throwInvalidFileException("\".F{index}:\" expected");
-        }
+        errorIfNot(ss >> str, strfmt("\".F{}:\" expected", i));
+        errorIf((str.length() < 2 || str.back() != ':'), strfmt("\".F{}:\" expected", i));
         str.pop_back();
 
         int index = -1;
@@ -563,11 +543,12 @@ File File::parse_file_text(std::ifstream& in) {
             ss.clear();
             char ch;
             ss >> std::skipws >> ch;
-            if ((ch == 'F' || ch == 'f') && ss >> index) {
+            if ((ch == 'F' || ch == 'f')) {
                 // .Fx
-                if (index < 0 || index >= functions_count) {
-                    throwInvalidFileException("index out of range");
-                }
+                std::string temp;
+                errorIfNot(ss >> temp, strfmt("\".F{}:\" expected", i));
+                errorIfAssignFailed(index, try_to_int(temp), "invalid function index");
+                errorIf(index != i, strfmt("\".F{}:\" expected", i));
             }
         }
         else {
@@ -581,15 +562,11 @@ File File::parse_file_text(std::ifstream& in) {
             } 
         }
         ensureNoMoreInput();
-        if (index < 0) {
-            throwInvalidFileException("no such function");
-        }
+        errorIf(index < 0, "no such function");
         functions.at(index).instructions = std::move(parseInstructions());
     }
 
-    if (in >> str) {
-        throwInvalidFileException("unused content");
-    }
+    errorIf(in >> str, "unused content");
 
     return File{0x00000001, std::move(constants), std::move(start), std::move(functions)};
 }

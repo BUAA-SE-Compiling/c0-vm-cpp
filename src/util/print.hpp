@@ -4,6 +4,7 @@
 #include "./tuple_visit.hpp"
 
 #include <iostream>
+#include <sstream>
 #include <tuple>
 
 inline void print(std::ostream& out) {
@@ -57,6 +58,14 @@ inline void printfmt(std::ostream& out, const char *format, const T& arg, const 
             break;
         }
     }
+}
+
+template <typename... Args>
+// ("{} is {}, not {}", "A", 1, 'B') -> ("A is 1, not B")
+inline std::string strfmt(const char *format, const Args&... args) {
+    std::stringstream ss;
+    printfmt(ss, format, args...);
+    return ss.str();
 }
 
 inline bool is_digit(int ch) {

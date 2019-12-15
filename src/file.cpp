@@ -425,7 +425,7 @@ File File::parse_file_text(std::ifstream& in) {
             else if (type == "I") {
                 constant.type = vm::Constant::Type::INT;
                 errorIfNot(ss >> std::skipws >> value, "invalid format");
-                errorIfAssignFailed(constant.value, try_to_int(temp), "out of range or invalid format");
+                errorIfAssignFailed(constant.value, try_to_int(value), "out of range or invalid format");
             }
             else if (type == "D") {
                 constant.type = vm::Constant::Type::DOUBLE;

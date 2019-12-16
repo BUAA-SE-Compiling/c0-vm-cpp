@@ -47,7 +47,24 @@ inline std::string to_hex_string(double d) {
     return ss.str();
 }
 
+inline std::string trim(std::string s) {
+    auto bg = 0;
+    auto ed = s.size();
+    for (;bg < ed; ++bg) {
+        if (!isspace(static_cast<unsigned char>(s[bg]))) {
+            break;
+        }
+    }
+    for (; ed > bg; --ed) {
+        if (!isspace(static_cast<unsigned char>(s[ed]))) {
+            break;
+        }
+    }
+    return s.substr(bg, ed-bg);
+}
+
 inline std::int32_t try_to_int(std::string s) {
+    s = trim(s);
     if (s.length() > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
         return static_cast<std::int32_t>(std::stoull(s, 0, 0));
     }

@@ -15,22 +15,20 @@ void disassemble_binary(std::ifstream* in, std::ostream* out) {
         File f = File::parse_file_binary(*in);
         f.output_text(*out);
     }
-    catch (const InvalidFile& e) {
-        println(std::cerr, e.what());
-    }
     catch (const std::exception& e) {
         println(std::cerr, e.what());
     }
 }
 
-void assemble_text(std::ifstream* in, std::ofstream* out) {
+void assemble_text(std::ifstream* in, std::ofstream* out, bool run = false) {
     try {
         File f = File::parse_file_text(*in);
         // f.output_text(std::cout);
         f.output_binary(*out);
-    }
-    catch (const InvalidFile& e) {
-        println(std::cerr, e.what());
+        if (run) {
+            auto avm = std::move(vm::VM::make_vm(f));
+            avm->start();
+        }
     }
     catch (const std::exception& e) {
         println(std::cerr, e.what());
@@ -42,9 +40,6 @@ void execute(std::ifstream* in, std::ostream* out) {
         File f = File::parse_file_binary(*in);
         auto avm = std::move(vm::VM::make_vm(f));
         avm->start();
-    }
-    catch (const InvalidFile& e) {
-        println(std::cerr, e.what());
     }
     catch (const std::exception& e) {
         println(std::cerr, e.what());
@@ -117,10 +112,7 @@ int main (int argc, char** argv) {
         disassemble_binary(input, output);
     }
     else if (program["-a"] == true) {
-        if (program["-r"] == true) {
-            exit(2);
-        }
-        if (program["-d"] == true || program["-r"] == true) {
+        if (program["-d"] == true) {
             exit(2);
         }
         
@@ -139,7 +131,7 @@ int main (int argc, char** argv) {
             exit(2);
         }
         output = &outf;
-        assemble_text(input, dynamic_cast<std::ofstream*>(output));
+        assemble_text(input, dynamic_cast<std::ofstream*>(output), program["-r"] == true);
     }
     else if (program["-r"] == true) {
         inf.open(input_file, std::ios::binary | std::ios::in);

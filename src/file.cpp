@@ -317,15 +317,10 @@ File File::parse_file_text(std::ifstream& in) {
                     break;
                 }
             }
-            // remove leading whitespaces
-            for (;bg < ed; ++bg) {
-                if (!isspace(static_cast<unsigned char>(line[bg]))) {
-                    break;
-                }
-            }   
+            // remove leading and trailing whitespaces
+            line = trim(std::move(line));
             // not a blank line     
-            if (bg != ed) {
-                line = line.substr(bg, ed-bg);
+            if (line.size() != 0) {
                 ss.str(line);
                 ss.clear();
                 return;

@@ -110,7 +110,8 @@ void VM::run() {
         }
     }
     catch (const std::exception& e) {
-        println(std::cerr, "runtime error:", e.what(), " occurred at:");
+        println(std::cerr, "runtime error:", e.what(), "!");
+        println(std::cerr, "occurred at:");
         printStackTrace(std::cerr);
     }
 }

@@ -110,7 +110,7 @@ void VM::run() {
         }
     }
     catch (const std::exception& e) {
-        println(std::cerr, "runtime error", e.what(), " occurred at:");
+        println(std::cerr, "runtime error:", e.what(), " occurred at:");
         printStackTrace(std::cerr);
     }
 }
@@ -123,10 +123,10 @@ void VM::printStackTrace(std::ostream& out) {
     }
     auto pc = this->_ip;
     if (pc >= _currentInstructions.size()) {
-        println(out, "          function", rit->functionName, "at instruction", pc, ":", _currentInstructions.at(pc));
+        println(out, "          control reaches the end of function", rit->functionName, "without return");
     }
     else {
-        println(out, "          control reaches the end of function", rit->functionName, "without return");
+        println(out, "          function", rit->functionName, "at instruction", pc, ":", _currentInstructions.at(pc));
     }
     while (true) {
         pc = rit->prevPC;

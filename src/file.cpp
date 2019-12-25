@@ -308,19 +308,15 @@ File File::parse_file_text(std::ifstream& in) {
     const auto readLine = [&]() {
         while(std::getline(in, line)) {
             ++line_count;
-            int bg = 0;
-            int ed = line.length();
             // remove comment
-            for (auto i = bg; i < ed; ++i) {
-                if (line[i] == '#') {
-                    ed = i;
-                    break;
-                }
+            if (auto ed = line.find_first_of('#'); ed != std::string::npos) {
+                line.resize(ed); 
+                // line.erase(line.begin()+ed, line.end());
             }
             // remove leading and trailing whitespaces
             line = trim(std::move(line));
             // not a blank line     
-            if (line.size() != 0) {
+            if (!line.empty()) {
                 ss.str(line);
                 ss.clear();
                 return;
@@ -329,6 +325,7 @@ File File::parse_file_text(std::ifstream& in) {
         // eof
         line = "";
         ss.str("");
+        ss.clear();
     };
     const auto reuseLine = [&]() {
         ss.str(line);

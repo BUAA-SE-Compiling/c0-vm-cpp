@@ -50,11 +50,15 @@ inline std::string to_hex_string(double d) {
 inline std::string trim(std::string s) {
     auto bg = 0;
     auto ed = s.size();
+    // bg = s.find_first_not_of(" \n\r\t\v\f");
+    // bg = bg == std::string::npos? 0 : bg;
     for (;bg < ed; ++bg) {
         if (!isspace(static_cast<unsigned char>(s[bg]))) {
             break;
         }
     }
+    // ed = s.find_last_not_of(" \n\r\t\v\f");
+    // ed = ed == std::string::npos? s.size() : ed+1;
     for (; ed > bg; --ed) {
         if (!isspace(static_cast<unsigned char>(s[ed]))) {
             break;
